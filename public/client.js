@@ -9,7 +9,7 @@ joinBtn.onclick = () => {
   const roomId = roomInput.value.trim();
   if (!roomId) return alert('Enter room ID');
 
-  ws = new WebSocket(`ws://${window.location.host}`);
+  ws = new WebSocket(`ws://enigma-rla6.onrender.com`);
   ws.onopen = () => {
     ws.send(JSON.stringify({ type: 'join', room: roomId }));
     initWebRTC(roomId);
