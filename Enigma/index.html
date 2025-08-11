@@ -1,0 +1,145 @@
+9/<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Enigma — Private Messaging</title>
+    <meta name="theme-color" content="#0f172a">
+    <link rel="manifest" href="manifest.webmanifest">
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<div class="app">
+    <div class="topbar">
+        <div class="brand">Enigma</div>
+        <div class="topbar-actions">
+            <button id="newRoomBtn">New Room</button>
+            <button id="joinRoomBtn">Join</button>
+            <button id="settingsBtn">Settings</button>
+        </div>
+    </div>
+
+    <div class="container">
+        <!-- Sidebar -->
+        <div class="sidebar">
+            <div class="header">Your Rooms</div>
+            <ul id="chatList"></ul>
+        </div>
+
+        <!-- Chat area -->
+        <div class="chat">
+            <div class="chat-header" id="chatTitle">Select a room</div>
+            <div class="messages" id="messages"></div>
+            <div class="input-area">
+                <input type="text" id="messageInput" placeholder="Type a message..." autocomplete="off">
+                <button id="sendBtn">Send</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modals -->
+<div class="modal" id="newRoomModal" aria-hidden="true">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h3>Create Room</h3>
+            <button class="icon-btn" data-close="#newRoomModal">✕</button>
+        </div>
+        <div class="modal-body">
+            <label class="field">
+                <span>Room name (optional)</span>
+                <input type="text" id="newRoomName" placeholder="e.g., Project Alpha">
+            </label>
+            <label class="field">
+                <span>Invite expiry (hours, optional)</span>
+                <input type="number" id="inviteExpiryHours" min="0" max="168" placeholder="0 = never">
+            </label>
+        </div>
+        <div class="modal-footer">
+            <button id="createRoomConfirm">Create</button>
+        </div>
+    </div>
+    <div class="modal-backdrop" data-close="#newRoomModal"></div>
+    </div>
+
+<div class="modal" id="shareModal" aria-hidden="true">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h3>Invite</h3>
+            <button class="icon-btn" data-close="#shareModal">✕</button>
+        </div>
+        <div class="modal-body">
+            <div id="qrContainer" class="qr"></div>
+            <div class="invite-link">
+                <input id="inviteLink" readonly>
+                <button id="copyInviteBtn">Copy</button>
+            </div>
+            <p class="muted">Anyone with this link or QR can join. The key stays in the URL hash and is not sent to the server.</p>
+        </div>
+    </div>
+    <div class="modal-backdrop" data-close="#shareModal"></div>
+</div>
+
+<div class="modal" id="joinModal" aria-hidden="true">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h3>Join Room</h3>
+            <button class="icon-btn" data-close="#joinModal">✕</button>
+        </div>
+        <div class="modal-body">
+            <label class="field">
+                <span>Paste invite link or code</span>
+                <input type="text" id="joinInput" placeholder="Paste link or ROOMID|KEY">
+            </label>
+        </div>
+        <div class="modal-footer">
+            <button id="joinConfirm">Join</button>
+        </div>
+    </div>
+    <div class="modal-backdrop" data-close="#joinModal"></div>
+</div>
+
+<div class="modal" id="settingsModal" aria-hidden="true">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h3>Settings</h3>
+            <button class="icon-btn" data-close="#settingsModal">✕</button>
+        </div>
+        <div class="modal-body">
+            <label class="field">
+                <span>Display name</span>
+                <input type="text" id="displayNameInput" placeholder="Your name">
+            </label>
+            <div class="field-row">
+                <span class="muted">User ID</span>
+                <code id="userIdLabel"></code>
+            </div>
+            <div class="field-row">
+                <label class="switch">
+                    <input type="checkbox" id="themeToggle">
+                    <span class="slider"></span>
+                </label>
+                <span>Dark theme</span>
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button id="saveSettingsBtn">Save</button>
+        </div>
+    </div>
+    <div class="modal-backdrop" data-close="#settingsModal"></div>
+</div>
+
+<!-- Firebase -->
+<script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
+
+<!-- QRCode generator -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+
+<!-- Config + Logic -->
+<script src="firebase-config.js"></script>
+<script src="script.js"></script>
+<script>if ('serviceWorker' in navigator) { navigator.serviceWorker.register('service-worker.js').catch(()=>{}); }</script>
+</body>
+</html>
