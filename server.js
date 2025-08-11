@@ -4,11 +4,18 @@ const WebSocket = require('ws');
 
 const app = express();
 const server = http.createServer(app);
-const wss = new WebSocket.Server({ server });
+
+
+const wss = new WebSocket.Server({
+  server,
+  verifyClient: (info, done) => {
+    done(true); 
+  }
+});
 
 app.use(express.static('public'));
 
-const rooms = new Map(); 
+const rooms = new Map();
 
 wss.on('connection', (ws) => {
   ws.on('message', (message) => {
@@ -47,7 +54,8 @@ wss.on('connection', (ws) => {
   });
 });
 
+
 const PORT = process.env.PORT || 3000;
 server.listen(PORT, () => {
-  console.log(`Enigma signaling server running on http://localhost:${PORT}`);
+  console.log(`Enigma signaling server running on port ${PORT}`);
 });
