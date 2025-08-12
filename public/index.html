@@ -1,19 +1,76 @@
-<!DOCTYPE html>
+
 <html>
 <head>
-  <meta charset="UTF-8">
-  <title>Enigma </title>
+  
+  <title>Enigma</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <style>
+    body { font-family: Arial, sans-serif; max-width:900px; margin:18px auto; padding:0 12px; }
+    h1 { font-size:20px; margin-bottom:8px; }
+    input, button, textarea { font-size:14px; padding:8px; margin:6px 0; }
+    #left, #right { display:inline-block; vertical-align:top; }
+    #left { width:320px; margin-right:16px; }
+    #right { width:calc(100% - 360px); }
+    .box { border:1px solid #ddd; padding:10px; margin-bottom:12px; border-radius:6px; background:#fafafa; }
+    .small { font-size:13px; color:#555; }
+    .contact { padding:6px; border-bottom:1px solid #eee; cursor:pointer; }
+    .contact:hover { background:#f1f1f1; }
+    #chat { height:360px; overflow:auto; border:1px solid #ddd; padding:8px; white-space:pre-wrap; background:#fff; }
+    .me { color:green }
+    .peer { color:blue }
+    .muted { color:#777; font-size:13px }
+    .key { font-family:monospace; background:#fff; padding:3px 6px; border-radius:4px; border:1px solid #eee; }
+  </style>
 </head>
 <body>
-  <h2>Enigma</h2>
-  <input id="roomInput" placeholder="Room ID" />
-  <button id="joinBtn">Join Room</button>
-  <br><br>
-  <textarea id="messages" rows="10" cols="50" readonly></textarea><br>
-  <input id="msgInput" placeholder="Type message..." />
-  <button id="sendBtn">Send</button>
+  <h1>Enigma</h1>
 
-  <script src="client.js"></script>
+  <div id="left">
+    <div class="box" id="accountBox">
+      <div id="signupSection">
+        <div><b>Create account</b></div>
+        <label class="small">Display name</label><br>
+        <input id="displayName" placeholder="Alice" />
+        <br>
+        <button id="createBtn">Create account</button>
+        <hr>
+        <div><b>Recover account</b></div>
+        <label class="small">Enter private passcode</label><br>
+        <input id="recoverPass" placeholder="Paste your passcode" />
+        <br>
+        <button id="recoverBtn">Recover</button>
+      </div>
+
+      <div id="myInfo" style="display:none; margin-top:8px;"></div>
+    </div>
+
+    <div class="box">
+      <div><b>Find & Add Contact</b></div>
+      <label class="small">Friend's public key (paste)</label><br>
+      <input id="friendKey" placeholder="friend public key" style="width:100%" />
+      <button id="addContactBtn">Add to contacts</button>
+      <div id="addResult" class="small muted"></div>
+    </div>
+
+    <div class="box">
+      <div><b>Your contacts</b></div>
+      <div id="contacts" style="min-height:80px"></div>
+    </div>
+  </div>
+
+  <div id="right">
+    <div class="box">
+      <div id="chatHeader"><b>Open a contact to chat</b></div>
+      <div id="chat" aria-live="polite">(no conversation)</div>
+      <div style="margin-top:8px;">
+        <input id="msgInput" placeholder="Type a message..." style="width:75%" />
+        <button id="sendBtn">Send</button>
+      </div>
+    </div>
+
+    
+  </div>
+
+  <script type="module" src="app.js"></script>
 </body>
 </html>
-

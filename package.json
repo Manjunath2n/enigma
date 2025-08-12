@@ -1,13 +1,11 @@
 {
-  "name": "enigma",
+  "name": "enigma-session-lite",
   "version": "1.0.0",
-  "description": "Enigma - Minimal anonymous WebRTC chat with stateless signaling server",
-  "main": "server.js",
+  "type": "module",
   "scripts": {
     "start": "node server.js"
   },
   "dependencies": {
-    "express": "^4.21.2",
-    "ws": "^8.18.3"
+    "express": "^4.21.2"
   }
 }
