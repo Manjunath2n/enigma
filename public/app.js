@@ -1,5 +1,3 @@
-// app.js - Enigma Session-lite with "delete-on-leave" behavior (no encryption)
-// Firebase Web SDK v10 (modular)
 
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
 import {
@@ -7,23 +5,14 @@ import {
   query, where, onSnapshot, deleteDoc, orderBy, getDocs
 } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 
-/* ---------- FIREBASE CONFIG: REPLACE WITH YOURS ---------- */
-const firebaseConfig = {
-  apiKey: "AIzaSyAhrs1yabw3uOq2kk-KZET_Egx85oCH0Yc",
-  authDomain: "enigma-90c65.firebaseapp.com",
-  projectId: "enigma-90c65",
-  storageBucket: "enigma-90c65.firebasestorage.app",
-  messagingSenderId: "954143085438",
-  appId: "1:954143085438:web:4c78f82dcb478df558992f",
-  measurementId: "G-2J01KTBFMY"
 
-};
-/* -------------------------------------------------------- */
+const firebaseConfig = window.firebaseEnv;
+
 
 const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
 
-/* ---------- UI elements ---------- */
+
 const displayNameInput = document.getElementById('displayName');
 const createBtn = document.getElementById('createBtn');
 const recoverPass = document.getElementById('recoverPass');
@@ -41,17 +30,16 @@ const chatHeader = document.getElementById('chatHeader');
 const chatDiv = document.getElementById('chat');
 const msgInput = document.getElementById('msgInput');
 const sendBtn = document.getElementById('sendBtn');
+const clearChatBtn = document.getElementById('clearChatBtn');
 
-/* ---------- App state ---------- */
-// Local account stored in localStorage under 'enigma_account'
-// { pubkey, passcode, displayName }
+
 let me = null;
-let contacts = {}; // map pubkey -> { pubkey, displayName }
-let activeFriend = null; // pubkey string
+let contacts = {}; 
+let activeFriend = null; 
 let inboxUnsub = null;
-let messagesToDelete = []; // message IDs currently displayed in the open chat
+let messagesToDelete = []; 
 
-/* ---------- Utilities ---------- */
+
 function randBase36(len = 20) {
   const arr = new Uint8Array(len);
   crypto.getRandomValues(arr);
@@ -94,38 +82,50 @@ function showMyInfo() {
   myInfoDiv.style.display = '';
   myInfoDiv.innerHTML = `
     <div><b>${escapeHtml(me.displayName)}</b></div>
-    <div class="small">Public key: <span class="key">${me.pubkey}</span></div>
+    <div class="small">Public key: <span class="key">${me.pubkey}</span><button id="copyPK">Copy</button></div>
     <div class="small">Recovery passcode: <span class="key">${me.passcode}</span> <button id="copyPass">Copy</button></div>
     <div style="margin-top:6px;"><button id="logoutBtn">Forget account (local)</button></div>
   `;
   document.getElementById('copyPass').onclick = () => {
     navigator.clipboard.writeText(me.passcode);
-    alert('Passcode copied to clipboard');
+    alertCustom('Passcode copied to clipboard');
+  };
+  document.getElementById('copyPK').onclick = () => {
+    navigator.clipboard.writeText(me.pubkey);
+    alertCustom('Public key copied to clipboard');
   };
   document.getElementById('logoutBtn').onclick = () => {
-    if (confirm('This will forget your local session (you can recover using passcode). Continue?')) {
+    confirmCustom('This will forget your local session (you can recover using passcode). Continue?',function(res) {
+	if (res) {
       clearLocalAccount();
       location.reload();
     }
+	});
   };
 }
 
 /* ---------- Startup: load local account if exists ---------- */
-(function init() {
+(async function init() {
   const acc = loadLocalAccount();
   if (acc) {
     me = acc;
     showMyInfo();
-    loadContacts();
+    await loadContacts();
   } else {
     showMyInfo();
   }
+
+  // perform an initial cleanup of messages older than 24h (best-effort client-side)
+  try { await cleanupOldMessages(); } catch (e) { console.warn('Cleanup failed', e); }
+
+  // run periodic cleanup every hour (best-effort)
+  setInterval(() => cleanupOldMessages().catch(e=>console.warn('cleanup',e)), 1000*60*60);
 })();
 
 /* ---------- Create account ---------- */
 createBtn.onclick = async () => {
   const displayName = (displayNameInput.value || '').trim();
-  if (!displayName) return alert('Enter display name');
+  if (!displayName) return alertCustom('Enter display name');
 
   const pubkey = genPublicKey();
   const passcode = genPasscode();
@@ -140,18 +140,18 @@ createBtn.onclick = async () => {
   me = { pubkey, passcode, displayName };
   saveLocalAccount(me);
   showMyInfo();
-  loadContacts();
-  alert('Account created. Share your public key with friends to be found.');
+  await loadContacts();
+  alertCustom('Account created. Share your public key with friends to be found.');
 };
 
 /* ---------- Recover by passcode ---------- */
 recoverBtn.onclick = async () => {
   const code = (recoverPass.value || '').trim().toUpperCase();
-  if (!code) return alert('Enter passcode to recover');
+  if (!code) return alertCustom('Enter passcode to recover');
 
   const q = query(collection(db, 'users'), where('passcode', '==', code));
   const snap = await getDocs(q);
-  if (snap.empty) return alert('No account found with that passcode');
+  if (snap.empty) return alertCustom('No account found with that passcode');
 
   const docSnap = snap.docs[0];
   const data = docSnap.data();
@@ -159,25 +159,25 @@ recoverBtn.onclick = async () => {
   me = { pubkey, passcode: code, displayName: data.displayName || 'Unknown' };
   saveLocalAccount(me);
   showMyInfo();
-  loadContacts();
-  alert('Account recovered locally.');
+  await loadContacts();
+  alertCustom('Account recovered locally.');
 };
 
-/* ---------- Add contact (by public key) ---------- */
-addContactBtn.onclick = async () => {
-  if (!me) return alert('Create or recover an account first');
-  const friendKey = (friendKeyInput.value || '').trim();
-  if (!friendKey) return alert('Paste friend public key');
-  if (friendKey === me.pubkey) return alert("You can't add yourself");
 
-  // check that user exists
+addContactBtn.onclick = async () => {
+  if (!me) return alertCustom('Create or recover an account first');
+  const friendKey = (friendKeyInput.value || '').trim();
+  if (!friendKey) return alertCustom('Paste friend public key');
+  if (friendKey === me.pubkey) return alertCustom("You can't add yourself");
+
+ 
   const friendDoc = await getDoc(doc(db, 'users', friendKey));
   if (!friendDoc.exists()) {
     addResult.innerText = 'No user found with that public key';
     return;
   }
 
-  // store under users/{me.pubkey}/contacts/{friendKey}
+ 
   await setDoc(doc(db, 'users', me.pubkey, 'contacts', friendKey), {
     friendUid: friendKey,
     displayNameSnapshot: friendDoc.data().displayName || '',
@@ -187,15 +187,14 @@ addContactBtn.onclick = async () => {
   addResult.innerText = 'Added to contacts';
   friendKeyInput.value = '';
   setTimeout(() => addResult.innerText = '', 2000);
-  loadContacts();
+  await loadContacts();
 };
 
-/* ---------- Load contacts (live) ---------- */
-function loadContacts() {
+
+async function loadContacts() {
   contactsDiv.innerText = '(loading...)';
   const contactsCol = collection(db, 'users', me.pubkey, 'contacts');
 
-  // unsubscribe existing
   if (contactsDiv._unsub) contactsDiv._unsub();
 
   contactsDiv._unsub = onSnapshot(contactsCol, async (snap) => {
@@ -203,102 +202,194 @@ function loadContacts() {
     contactsDiv.innerHTML = '';
     if (snap.empty) { contactsDiv.innerText = '(no contacts)'; return; }
 
-    // iterate and render
     for (const c of snap.docs) {
       const friendUid = c.id;
       const d = c.data();
-      // fetch latest profile
       const friendDoc = await getDoc(doc(db, 'users', friendUid));
       const friendData = friendDoc.exists() ? friendDoc.data() : d;
       contacts[friendUid] = { pubkey: friendUid, displayName: friendData.displayName || d.displayNameSnapshot || 'Unknown' };
 
       const el = document.createElement('div');
       el.className = 'contact';
-      el.textContent = `${contacts[friendUid].displayName} — ${contacts[friendUid].pubkey}`;
+      el.textContent = contacts[friendUid].displayName;
+
+      const sub = document.createElement('div');
+      sub.className = 'small';
+      sub.textContent = friendUid;
+
+      const right = document.createElement('div');
+      el.appendChild(sub);
+      el.appendChild(right);
+
+      
+      const inboxCol = collection(db, 'users', me.pubkey, 'inbox');
+      const q = query(inboxCol, where('from', '==', friendUid));
+      onSnapshot(q, (snapMsgs) => {
+        right.innerHTML = "";
+        if (!snapMsgs.empty) {
+          const badge = document.createElement('span');
+          badge.className = 'badge';
+          right.appendChild(badge);
+        }
+      });
+
       el.onclick = () => openChatWith(friendUid);
       contactsDiv.appendChild(el);
     }
   });
 }
 
-/* ---------- Open chat: listen for messages FROM friend TO me ---------- */
-async function openChatWith(friendPubKey) {
-  if (!me) return alert('Create/recover account first');
-  if (!contacts[friendPubKey]) return alert('Contact not loaded yet');
 
-  // If switching from another chat: delete previously displayed messages
+async function openChatWith(friendPubKey) {
+  if (!me) return alertCustom('Create/recover account first');
+  if (!contacts[friendPubKey]) return alertCustom('Contact not loaded yet');
+
   await clearDisplayedMessages();
 
   activeFriend = contacts[friendPubKey];
   chatHeader.innerHTML = `<b>Chat with ${escapeHtml(activeFriend.displayName)}</b>`;
-  chatDiv.innerText = '(listening...)';
+  chatDiv.innerText = '(loading...)';
   messagesToDelete = [];
 
-  // unsubscribe previous listener if any
   if (inboxUnsub) inboxUnsub();
 
-  // listen to our inbox for messages from this friend
-  const inboxCol = collection(db, 'users', me.pubkey, 'inbox');
-  const q = query(inboxCol, where('from', '==', friendPubKey), orderBy('createdAt'));
-  inboxUnsub = onSnapshot(q, (snap) => {
-    if (snap.empty) {
-      chatDiv.innerText = '(no messages)';
-      messagesToDelete = [];
-      return;
-    }
-    // render all messages from snapshot (they remain visible)
+  
+  const incomingQ = query(
+    collection(db, 'users', me.pubkey, 'inbox'),
+    where('from', '==', friendPubKey),
+    orderBy('createdAt')
+  );
+  const outgoingQ = query(
+    collection(db, 'users', friendPubKey, 'inbox'),
+    where('from', '==', me.pubkey),
+    orderBy('createdAt')
+  );
+
+  
+  const renderChat = async () => {
+    const incomingSnap = await getDocs(incomingQ);
+    const outgoingSnap = await getDocs(outgoingQ);
+
+    const msgs = [];
+    incomingSnap.forEach(d => msgs.push({ ...d.data(), id: d.id, who: 'them' }));
+    outgoingSnap.forEach(d => msgs.push({ ...d.data(), id: d.id, who: 'me' }));
+
+    msgs.sort((a,b) => (a.createdAt||0) - (b.createdAt||0));
+
     chatDiv.innerText = '';
     messagesToDelete = [];
-    for (const docSnap of snap.docs) {
-      const msg = docSnap.data();
-      const mid = docSnap.id;
-      chatDiv.innerText += `\n${activeFriend.displayName}: ${msg.content}`;
-      messagesToDelete.push(mid);
+
+    for (const m of msgs) {
+      if (m.who === 'them') {
+        chatDiv.innerText += `\n${activeFriend.displayName}: ${m.content}`;
+        messagesToDelete.push(m.id);
+      } else {
+        chatDiv.innerText += `\nMe: ${m.content}`;
+      }
     }
-    // scroll to bottom
     chatDiv.scrollTop = chatDiv.scrollHeight;
-  });
+  };
+
+  
+  const unsubIn = onSnapshot(incomingQ, renderChat);
+  const unsubOut = onSnapshot(outgoingQ, renderChat);
+  inboxUnsub = () => { unsubIn(); unsubOut(); };
+  renderChat();
 }
 
-/* ---------- Send message: add to recipient's inbox ---------- */
+
 sendBtn.onclick = async () => {
-  if (!me) return alert('Create or recover an account first');
-  if (!activeFriend) return alert('Open a contact to send');
+  if (!me) return alertCustom('Create or recover an account first');
+  if (!activeFriend) return alertCustom('Open a contact to send');
   const text = (msgInput.value || '').trim();
   if (!text) return;
-  // write to users/{recipientPub}/inbox
-  await addDoc(collection(db, 'users', activeFriend.pubkey, 'inbox'), {
-    from: me.pubkey,
-    content: text,
-    createdAt: Date.now()
-  });
-  chatDiv.innerText += `\nMe: ${text}`;
+  
+  sendBtn.disabled = true;
+  try {
+    await addDoc(collection(db, 'users', activeFriend.pubkey, 'inbox'), {
+      from: me.pubkey,
+      content: text,
+      createdAt: Date.now()
+    });
+  } catch (e) {
+    console.error('Send failed', e);
+    alertCustom('Failed to send message');
+  } finally {
+    sendBtn.disabled = false;
+  }
+  
   msgInput.value = '';
   chatDiv.scrollTop = chatDiv.scrollHeight;
 };
 
-/* ---------- Clear displayed messages: delete message docs whose IDs are in messagesToDelete ---------- */
 async function clearDisplayedMessages() {
   if (!me) return;
   if (!messagesToDelete || messagesToDelete.length === 0) return;
   const deletes = messagesToDelete.map(mid => deleteDoc(doc(db, 'users', me.pubkey, 'inbox', mid)).catch(e => console.warn('Delete failed', e)));
-  // perform deletes in parallel
   await Promise.all(deletes);
   messagesToDelete = [];
 }
 
-/* ---------- When user navigates away from chat (open another contact or close tab) delete displayed messages ---------- */
-window.addEventListener('beforeunload', (e) => {
-  // synchronous deletion is not reliable — attempt best-effort via navigator.sendBeacon fallback
-  if (me && messagesToDelete && messagesToDelete.length) {
+
+clearChatBtn.onclick = async () => {
+  if (!me) return alertCustom('Create/recover account first');
+  if (!activeFriend) return alertCustom('Open chat to delete it');
+
+ 
+  confirmCustom('Delete all messages in this chat (both sides)? This cannot be undone.', async function (res) {
+    if (!res) return;
+
+    const friend = activeFriend.pubkey;
+
     try {
-      // Best-effort: call REST endpoint to delete (not implemented here) or rely on client-side async deletes.
-      // We'll attempt to delete asynchronously (may not finish); this is a best-effort behavior in browsers.
-      clearDisplayedMessages();
-    } catch (err) {
-      console.warn('Unload delete attempt failed', err);
+     
+      const q1 = query(collection(db, 'users', me.pubkey, 'inbox'), where('from', '==', friend));
+      const snap1 = await getDocs(q1);
+      const dels1 = snap1.docs.map(d =>
+        deleteDoc(doc(db, 'users', me.pubkey, 'inbox', d.id)).catch(() => {})
+      );
+      await Promise.all(dels1);
+    } catch (e) {
+      console.warn(e);
     }
+
+    try {
+      const q2 = query(collection(db, 'users', friend, 'inbox'), where('from', '==', me.pubkey));
+      const snap2 = await getDocs(q2);
+      const dels2 = snap2.docs.map(d =>
+        deleteDoc(doc(db, 'users', friend, 'inbox', d.id)).catch(() => {})
+      );
+      await Promise.all(dels2);
+    } catch (e) {
+      console.warn(e);
+    }
+
+    await clearDisplayedMessages();
+    chatDiv.innerText = '(no messages)';
+    alertCustom('Chat cleared.');
+  });
+};
+
+
+
+window.addEventListener('beforeunload', (e) => {
+  if (me && messagesToDelete && messagesToDelete.length) {
+    try { clearDisplayedMessages(); } catch (err) { console.warn('Unload delete attempt failed', err); }
   }
 });
 
 
+async function cleanupOldMessages(){
+  if (!me) return;
+  const inboxCol = collection(db, 'users', me.pubkey, 'inbox');
+  const snap = await getDocs(inboxCol);
+  const threshold = Date.now() - (24*60*60*1000);
+  const dels = [];
+  for (const d of snap.docs){
+    const data = d.data();
+    if (data.createdAt && data.createdAt < threshold){
+      dels.push(deleteDoc(doc(db, 'users', me.pubkey, 'inbox', d.id)).catch(()=>{}));
+    }
+  }
+  await Promise.all(dels);
+}
