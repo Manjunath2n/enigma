@@ -71,7 +71,6 @@ function escapeHtml(s) {
   return String(s).replace(/[&<>"']/g, (m) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
 }
 
-/* ---------- Show account info ---------- */
 function showMyInfo() {
   if (!me) {
     myInfoDiv.style.display = 'none';
@@ -104,7 +103,7 @@ function showMyInfo() {
   };
 }
 
-/* ---------- Startup: load local account if exists ---------- */
+
 (async function init() {
   const acc = loadLocalAccount();
   if (acc) {
@@ -115,14 +114,14 @@ function showMyInfo() {
     showMyInfo();
   }
 
-  // perform an initial cleanup of messages older than 24h (best-effort client-side)
+ 
   try { await cleanupOldMessages(); } catch (e) { console.warn('Cleanup failed', e); }
 
-  // run periodic cleanup every hour (best-effort)
+  
   setInterval(() => cleanupOldMessages().catch(e=>console.warn('cleanup',e)), 1000*60*60);
 })();
 
-/* ---------- Create account ---------- */
+
 createBtn.onclick = async () => {
   const displayName = (displayNameInput.value || '').trim();
   if (!displayName) return alertCustom('Enter display name');
@@ -130,7 +129,7 @@ createBtn.onclick = async () => {
   const pubkey = genPublicKey();
   const passcode = genPasscode();
 
-  // create a Firestore user doc keyed by pubkey
+ 
   await setDoc(doc(db, 'users', pubkey), {
     displayName,
     passcode,
@@ -144,7 +143,7 @@ createBtn.onclick = async () => {
   alertCustom('Account created. Share your public key with friends to be found.');
 };
 
-/* ---------- Recover by passcode ---------- */
+
 recoverBtn.onclick = async () => {
   const code = (recoverPass.value || '').trim().toUpperCase();
   if (!code) return alertCustom('Enter passcode to recover');
